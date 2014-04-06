@@ -17,11 +17,16 @@ local currentProfile
 local profileCount = 0
 local timeout
 
+local normalColor = {1,32768}
+local highlightColor = {32768,1}
+local headerColor = {1,32768}
+local footerColor = {1,32768}
+
 local termW, termH = term.getSize()
 
 local _error = error
 local function error(message)
-	_error(message,math.huge)
+	_error(message,-1)
 end
 
 local function sleep( nTime )
@@ -85,7 +90,10 @@ local function write( sText )
             end
         end
     end
+	sleep(0.05)
 end
+
+local function print( sText ) write( sText .. "\n" ) end
 
 local function install_ccgrub()
 	if fs.exists(".boot") then
@@ -119,7 +127,7 @@ end
 local function run_cmd(line)
 	local cmdargs = split_cmd(line)
 	if commands[cmdargs[1]] == nil then
-		error("No such command")
+		error("No such command, " .. cmdargs[1])
 	end
 	return commands[cmdargs[1]](unpack(cmdargs, 2))
 end
@@ -165,13 +173,22 @@ local function load_config(path)
 	read_config(path)
 	for i = 1,profiles.default[0] do
 		local stat, err = pcall(run_cmd, profiles.default[i])
-		if stat == false then write(err .. "\n") sleep(0.05) end
+		if stat == false then print(err) end
 	end
 	currentProfile = 1
 end
 
+local function setColor(fg, bg)
+	if type(fg) == "table" then
+		fg, bg = fg[1], fg[2]
+	end
+	term.setTextColor(fg)
+	term.setBackgroundColor(bg)
+end
+
 local function gui_drawHeader(header_text)
 	term.setCursorPos(2,1)
+	setColor(headerColor)
 	term.clearLine()
 	term.write("CCGrub " .. _version .. " " .. _builddate)
 	term.setCursorPos(termW - #header_text,1)
@@ -179,34 +196,35 @@ local function gui_drawHeader(header_text)
 end
 
 local function gui_drawNormal(text, y, border)
-	local text = text:sub(1,border and termW - 2 or termW)
-	term.setCursorPos(1,y)
+	term.setCursorPos(border and 2 or 1,y)
+	setColor(normalColor)
 	term.clearLine()
-	if border then
-		term.write("|")
-	end
 	term.write(text)
 	if border then
+		term.setCursorPos(1,y)
+		term.write("|")
 		term.setCursorPos(termW,y)
 		term.write("|")
 	end
 end
 
 local function gui_drawHighlight(text, y, border)
-	term.setCursorPos(1,y)
+	term.setCursorPos(border and 2 or 1,y)
+	setColor(highlightColor)
 	term.clearLine()
-	if border then
-		term.write(">")
-	end
 	term.write(text)
 	if border then
+		setColor(normalColor)
+		term.setCursorPos(1,y)
+		term.write("|")
 		term.setCursorPos(termW,y)
-		term.write("<")
+		term.write("|")
 	end
 end
 
 local function gui_drawFooter(line1, line2)
 	term.setCursorPos(1,termH - 1)
+	setColor(footerColor)
 	term.clearLine()
 	term.write(line1)
 	term.setCursorPos(1,termH)
@@ -218,44 +236,68 @@ local function help()
 end
 
 local function interpreter()
+	term.setCursorBlink(true)
+	setColor(normalColor)
 	term.clear()
-	gui_drawHeader("")
-	gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
+	local line = ""
+	term.setCursorPos(1,3)
 	while true do
+		local _,lineY = term.getCursorPos()
+		gui_drawHeader("")
+		gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
+		term.setCursorPos(1,lineY)
+		term.clearLine()
+		term.write("> " .. line:sub(-termW + 3, -1))
 		local event = { coroutine.yield() }
 		if event[1] == "key" and event[2] == 16 then
 			break
+		elseif event[1] == "key" and event[2] == 14 then
+			line = line:sub(1,-2)
+		elseif event[1] == "key" and event[2] == 28 then
+			write("\n")
+			local stat, err = pcall(run_cmd, line)
+			if stat == false then print(err) end
+			line = ""
+		elseif event[1] == "char" then
+			line = line .. event[2]
 		end
 	end
 end
 
 local function menu()
-	term.clear()
+	term.setCursorBlink(false)
 	gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
 	gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", termH - 2, false)
-	local timeout_timer
+	local timeout_timer, timer_start
 	if timeout ~= nil then
+		timer_start = os.clock()
 		timeout_timer = os.startTimer(0.1)
+	else
+		gui_drawFooter("Press F1 for help.", "")
 	end
+	local bootSelection = true
 	while true do
 		gui_drawHeader(string.format("%02d",currentProfile) .. "/" .. string.format("%02d",profileCount))
 		local first = math.max(currentProfile - termH + 6,1)
-		for i = first, first + math.min(profileCount - 1, termH - 6) do
+		for i = first, first + termH - 6 do
 			local drawFunc
 			if i == currentProfile then
 				drawFunc = gui_drawHighlight
 			else
 				drawFunc = gui_drawNormal
 			end
-			drawFunc(profiles[i].title, i - first + 3, true)
+			local title = ""
+			if profiles[i] ~= nil and profiles[i].title ~= nil then title = profiles[i].title end
+			drawFunc(title, i - first + 3, true)
 		end
 		local event = { coroutine.yield() }
 		if event[1] == "timer" and event[2] == timeout_timer then
 			if timeout == nil then
-			elseif os.clock() >= timeout then
+			elseif os.clock() - timer_start >= timeout then
+				break
 			else
 				timeout_timer = os.startTimer(0.1)
-				gui_drawFooter("Press F1 for help.", "The selected entry will boot in " .. math.ceil(timeout - os.clock()) .. " seconds.")
+				gui_drawFooter("Press F1 for help.", "The selected entry will boot in " .. math.ceil(timeout - os.clock() + timer_start) .. " seconds.")
 			end
 		elseif event[1] == "key" and event[2] == 200 then
 			-- Arrow Up
@@ -265,16 +307,33 @@ local function menu()
 			if currentProfile < profileCount then currentProfile = currentProfile + 1 end
 		elseif event[1] == "key" and (event[2] == 28 or event[2] == 48 or event[2] == 205) then
 			-- Boot selection
-			gui_drawFooter("Press F1 for help.", "LOL Boot Selection? Nah")
+			break
 		elseif event[1] == "key" and (event[2] == 46) then
 			-- Interpreter
-			interpreter()
+			bootSelection = false
+			break
 		end
 		if event[1] == "key" and timeout ~= nil then
 			-- Disable timeout on any keypress
 			timeout = nil
 			gui_drawFooter("Press F1 for help.", "")
 		end
+	end
+	if not bootSelection then
+		interpreter()
+	else
+		term.setTextColor(1)
+		term.setBackgroundColor(32768)
+		term.clear()
+		term.setCursorPos(1,1)
+		term.setCursorBlink(true)
+		for i = 1, profiles[currentProfile][0] do
+			local stat, err = pcall(run_cmd, profiles[currentProfile][i])
+			if stat == false then print(err) end
+		end
+		local stat, err = pcall(run_cmd, "boot")
+		if stat == false then print(err) end
+		sleep(1)
 	end
 end
 
@@ -285,8 +344,7 @@ local function main()
 	if fs.exists(".boot/menu.lst") then
 		local stat, err = pcall(load_config, ".boot/menu.lst")
 		if stat == false then
-			write(err .. "\n")
-			sleep(0.05)
+			print(err)
 		end
 	end
 	while true do
