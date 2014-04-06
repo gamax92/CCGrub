@@ -253,7 +253,7 @@ local function interpreter()
 		elseif event[1] == "key" and event[2] == 28 then
 			write("\n")
 			line = string_trim(line)
-			if line == "return" then
+			if line == "return" or line:sub(1,7) == "return " then
 				break
 			else
 				local stat, err = pcall(run_cmd, line)
@@ -330,8 +330,12 @@ local function menu()
 		term.setCursorPos(1,1)
 		term.setCursorBlink(true)
 		for i = 1, profiles[currentProfile][0] do
-			local stat, err = pcall(run_cmd, profiles[currentProfile][i])
-			if stat == false then print(err) end
+			if profiles[currentProfile][i] == "commandline" or profiles[currentProfile][i]:sub(1,12) == "commandline " then
+				interpreter()
+			else
+				local stat, err = pcall(run_cmd, profiles[currentProfile][i])
+				if stat == false then print(err) end
+			end
 		end
 		local stat, err = pcall(run_cmd, "boot")
 		if stat == false then print(err) end

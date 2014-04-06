@@ -8,3 +8,6 @@ kernel /rom/ccgrub/ccbios.lua
 title CraftOS Lua Interpreter
 kernel /rom/ccgrub/ccbios.lua init=rom/programs/lua
 clear
+
+title CCGrub Interpreter
+commandline
