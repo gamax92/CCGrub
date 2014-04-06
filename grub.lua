@@ -115,23 +115,24 @@ local function add_cmd(name, func)
 end
 
 local function split_cmd(line)
+	line = (line or "") .. " "
 	local cmdargs = {}
-	for arg in line:gmatch("%S+") do table.insert(cmdargs, arg) end
+	for arg in line:gmatch("(%S*)%s") do table.insert(cmdargs, arg) end
 	return cmdargs
-end
-
-local function run_cmd(line)
-	local cmdargs = split_cmd(line)
-	if cmdargs[1] == nil then return end
-	if commands[cmdargs[1]] == nil then
-		error("No such command, " .. cmdargs[1])
-	end
-	return commands[cmdargs[1]](unpack(cmdargs, 2))
 end
 
 local function string_trim(s)
 	local from = s:match"^%s*()"
 	return from > #s and "" or s:match(".*%S", from)
+end
+
+local function run_cmd(line)
+	local cmdargs = split_cmd(string_trim(line))
+	if cmdargs[1] == "" then return end
+	if commands[cmdargs[1]] == nil then
+		error("No such command, " .. cmdargs[1])
+	end
+	return commands[cmdargs[1]](unpack(cmdargs, 2))
 end
 
 local function read_config(path)

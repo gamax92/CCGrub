@@ -50,7 +50,7 @@ local function cmd_color(normal, highlight, footer, header)
 	normalColor[1] = tonumber(normal:gmatch("(.*)/")())
 	normalColor[2] = tonumber(normal:gmatch("/(.*)")())
 	if not validate_color(highlight) then
-		if highlight ~= nil then print("Invalid color, highlight") end
+		if highlight ~= nil and highlight ~= "" then print("Invalid color, highlight") end
 		highlightColor[1] = normalColor[2]
 		highlightColor[2] = normalColor[1]
 	else
@@ -58,7 +58,7 @@ local function cmd_color(normal, highlight, footer, header)
 		highlightColor[2] = tonumber(highlight:gmatch("/(.*)")())
 	end
 	if not validate_color(footer) then
-		if highlight ~= nil then print("Invalid color, footer") end
+		if footer ~= nil and footer ~= "" then print("Invalid color, footer") end
 		footerColor[1] = normalColor[1]
 		footerColor[2] = normalColor[2]
 	else
@@ -66,7 +66,7 @@ local function cmd_color(normal, highlight, footer, header)
 		footerColor[2] = tonumber(footer:gmatch("/(.*)")())
 	end
 	if not validate_color(header) then
-		if highlight ~= nil then print("Invalid color, header") end
+		if header ~= nil and header ~= "" then print("Invalid color, header") end
 		headerColor[1] = normalColor[1]
 		headerColor[2] = normalColor[2]
 	else
