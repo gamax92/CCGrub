@@ -1,0 +1,2 @@
+-- Start CCGrub
+main()
