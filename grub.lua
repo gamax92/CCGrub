@@ -1,5 +1,7 @@
 -- CCGrub
--- Credits Gamax92, Grub4DOS (for concept)
+-- Credits Gamax92, Grub4DOS (for concept), sophiamaster (for testing)
+
+local term = term -- For LuaSrcDiet purposes
 
 local _version = "1.0.0"
 local _builddate = "2014-04-05"
@@ -96,15 +98,28 @@ end
 local function print( sText ) write( sText .. "\n" ) end
 
 local function install_ccgrub()
-	if fs.exists(".boot") then
-		fs.delete(".boot")
+	if not fs.exists(".boot") then
+		fs.makeDir(".boot")
+	elseif fs.exists(".boot") and not fs.isDir(".boot") then
+		local i = 1
+		while true do
+			if not fs.exists(".boot" .. i) then break end
+			i = i + 1
+		end
+		fs.move(".boot",".boot" .. i)
+		fs.makeDir(".boot")
 	end
-	fs.makeDir(".boot")
 	for i = 1, #migrate do
 		if fs.exists(migrate[i][1]) then
-			fs.copy(migrate[i][1],migrate[i][2])
+			if fs.exists(migrate[i][2]) then
+				fs.delete(migrate[i][2])
+			end
+			fs.copy(migrate[i][1], migrate[i][2])
 		end
 	end
+	local file = fs.open(".boot/.ccgrub_test","w")
+	file.write("DO NOT DELETE")
+	file.close()
 end
 
 local function add_cmd(name, func)
@@ -345,7 +360,7 @@ local function menu()
 end
 
 local function main()
-	if not fs.exists(".boot") then
+	if not fs.exists(".boot/.ccgrub_test")then
 		install_ccgrub()
 	end
 	if fs.exists(".boot/menu.lst") then

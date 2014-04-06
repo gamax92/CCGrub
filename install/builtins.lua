@@ -43,7 +43,7 @@ local function validate_color(color)
 end
 
 local function cmd_color(normal, highlight, footer, header)
-	if term.isColor == false then
+	if term.isColor() == false then
 		error("Terminal does not support color")
 	end
 	if not validate_color(normal) then error("Invalid color, normal") end
@@ -105,6 +105,7 @@ add_cmd("boot", cmd_boot)
 add_cmd("clear", cmd_clear)
 add_cmd("color", cmd_color)
 add_cmd("default", cmd_default)
+add_cmd("install", install_ccgrub)
 add_cmd("kernel", cmd_kernel)
 add_cmd("timeout", cmd_timeout)
 
