@@ -6,12 +6,13 @@ Default: Saved entries, File entries
 ]]
 
 local bootimage
+local bootappend
 local boottype
 
 local function cmd_boot()
 	if boottype == nil then
 		error("No boot image selected")
-	elseif boottype == "chainload" then
+	elseif boottype == "kernel" then
 		local file = fs.open(bootimage, "r")
 		if file == nil then
 			error("Could not open boot image")
@@ -22,7 +23,7 @@ local function cmd_boot()
 		if fn == nil then
 			error("Could not load boot image\n" .. err)
 		end
-		local stat, err = pcall(fn)
+		local stat, err = pcall(fn, bootappend)
 		if stat == false then
 			print("Boot image crashed\n" .. err)
 		end
@@ -31,15 +32,9 @@ local function cmd_boot()
 	end
 end
 
-local function cmd_chainloader(file)
-	if not fs.exists(file) then
-		error("No such file")
-	elseif fs.isDir(file) then
-		error("Cannot chainload a directory")
-	end
-	print([[Loading file as type "chainload"]])
-	bootimage = file
-	boottype = "chainload"
+local function cmd_clear()
+	term.clear()
+	term.setCursorPos(1,1)
 end
 
 local function validate_color(color)
@@ -55,7 +50,7 @@ local function cmd_color(normal, highlight, footer, header)
 	normalColor[1] = tonumber(normal:gmatch("(.*)/")())
 	normalColor[2] = tonumber(normal:gmatch("/(.*)")())
 	if not validate_color(highlight) then
-		if highlight ~= nil and highlight ~= "" then print("Invalid color, highlight") end
+		if highlight ~= nil then print("Invalid color, highlight") end
 		highlightColor[1] = normalColor[2]
 		highlightColor[2] = normalColor[1]
 	else
@@ -63,7 +58,7 @@ local function cmd_color(normal, highlight, footer, header)
 		highlightColor[2] = tonumber(highlight:gmatch("/(.*)")())
 	end
 	if not validate_color(footer) then
-		if highlight ~= nil and highlight ~= "" then print("Invalid color, footer") end
+		if highlight ~= nil then print("Invalid color, footer") end
 		footerColor[1] = normalColor[1]
 		footerColor[2] = normalColor[2]
 	else
@@ -71,7 +66,7 @@ local function cmd_color(normal, highlight, footer, header)
 		footerColor[2] = tonumber(footer:gmatch("/(.*)")())
 	end
 	if not validate_color(header) then
-		if highlight ~= nil and highlight ~= "" then print("Invalid color, header") end
+		if highlight ~= nil then print("Invalid color, header") end
 		headerColor[1] = normalColor[1]
 		headerColor[2] = normalColor[2]
 	else
@@ -90,14 +85,27 @@ local function cmd_default(obj)
 	end
 end
 
+local function cmd_kernel(file, ...)
+	if not fs.exists(file) then
+		error("No such file")
+	elseif fs.isDir(file) then
+		error("Cannot boot a directory")
+	end
+	print([[Loading file as type "kernel"]])
+	bootimage = file
+	bootappend = table.concat({ ... }, " ")
+	boottype = "kernel"
+end
+
 local function cmd_timeout(count)
 	timeout = tonumber(count)
 end
 
 add_cmd("boot", cmd_boot)
-add_cmd("chainloader", cmd_chainloader)
+add_cmd("clear", cmd_clear)
 add_cmd("color", cmd_color)
 add_cmd("default", cmd_default)
+add_cmd("kernel", cmd_kernel)
 add_cmd("timeout", cmd_timeout)
 
 -- End CCGrub default builtins

@@ -116,16 +116,13 @@ end
 
 local function split_cmd(line)
 	local cmdargs = {}
-	if line:find(" ",nil,true) ~= nil then
-		for arg in line:gmatch("%S+") do table.insert(cmdargs, arg) end
-	else
-		table.insert(cmdargs, line)
-	end
+	for arg in line:gmatch("%S+") do table.insert(cmdargs, arg) end
 	return cmdargs
 end
 
 local function run_cmd(line)
 	local cmdargs = split_cmd(line)
+	if cmdargs[1] == nil then return end
 	if commands[cmdargs[1]] == nil then
 		error("No such command, " .. cmdargs[1])
 	end
@@ -245,7 +242,7 @@ local function interpreter()
 		local _,lineY = term.getCursorPos()
 		gui_drawHeader("")
 		gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
-		term.setCursorPos(1,lineY)
+		term.setCursorPos(1,math.max(lineY,3))
 		term.clearLine()
 		term.write("> " .. line:sub(-termW + 3, -1))
 		local event = { coroutine.yield() }
@@ -255,8 +252,13 @@ local function interpreter()
 			line = line:sub(1,-2)
 		elseif event[1] == "key" and event[2] == 28 then
 			write("\n")
-			local stat, err = pcall(run_cmd, line)
-			if stat == false then print(err) end
+			line = string_trim(line)
+			if line == "return" then
+				break
+			else
+				local stat, err = pcall(run_cmd, line)
+				if stat == false then print(err) end
+			end
 			line = ""
 		elseif event[1] == "char" then
 			line = line .. event[2]

@@ -3,4 +3,8 @@ timeout 5
 default 1
 
 title CraftOS 1.6
-chainloader /rom/ccgrub/ccbios.lua
+kernel /rom/ccgrub/ccbios.lua
+
+title CraftOS Lua Interpreter
+kernel /rom/ccgrub/ccbios.lua init=rom/programs/lua
+clear

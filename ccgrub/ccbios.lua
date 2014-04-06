@@ -1,111 +1,6 @@
-
---[[
--- Install safe versions of various library functions
--- These will not put cfunctions on the stack, so don't break serialisation
-xpcall = function( _fn, _fnErrorHandler )
-    local typeT = type( _fn )
-    assert( typeT == "function", "bad argument #1 to xpcall (function expected, got "..typeT..")" )
-    local co = coroutine.create( _fn )
-    local tResults = { coroutine.resume( co ) }
-    while coroutine.status( co ) ~= "dead" do
-        tResults = { coroutine.resume( co, coroutine.yield() ) }
-    end
-    if tResults[1] == true then
-        return true, unpack( tResults, 2 )
-    else
-        return false, _fnErrorHandler( tResults[2] )
-    end
-end
-
-pcall = function( _fn, ... )
-    local typeT = type( _fn )
-    assert( typeT == "function", "bad argument #1 to pcall (function expected, got "..typeT..")" )
-    local tArgs = { ... }
-    return xpcall( 
-        function()
-            return _fn( unpack( tArgs ) )
-        end,
-        function( _error )
-            return _error
-        end
-    )
-end
-
-function pairs( _t )
-    local typeT = type( _t )
-    if typeT ~= "table" then
-        error( "bad argument #1 to pairs (table expected, got "..typeT..")", 2 )
-    end
-    return next, _t, nil
-end
-
-function ipairs( _t )
-    local typeT = type( _t )
-    if typeT ~= "table" then
-        error( "bad argument #1 to ipairs (table expected, got "..typeT..")", 2 )
-    end
-    return function( t, var )
-        var = var + 1
-        local value = t[var] 
-        if value == nil then
-            return
-        end
-        return var, value
-    end, _t, 0
-end
-
-function coroutine.wrap( _fn )
-    local typeT = type( _fn )
-    if typeT ~= "function" then
-        error( "bad argument #1 to coroutine.wrap (function expected, got "..typeT..")", 2 )
-    end
-    local co = coroutine.create( _fn )
-    return function( ... )
-        local tResults = { coroutine.resume( co, ... ) }
-        if tResults[1] then
-            return unpack( tResults, 2 )
-        else
-            error( tResults[2], 2 )
-        end
-    end
-end
-
-function string.gmatch( _s, _pattern )
-    local type1 = type( _s )
-    if type1 ~= "string" then
-        error( "bad argument #1 to string.gmatch (string expected, got "..type1..")", 2 )
-    end
-    local type2 = type( _pattern )
-    if type2 ~= "string" then
-        error( "bad argument #2 to string.gmatch (string expected, got "..type2..")", 2 )
-    end
-    
-    local nPos = 1
-    return function()
-        local nFirst, nLast = string.find( _s, _pattern, nPos )
-        if nFirst == nil then
-            return
-        end        
-        nPos = nLast + 1
-        return string.match( _s, _pattern, nFirst )
-    end
-end
-
-local nativesetmetatable = setmetatable
-function setmetatable( _o, _t )
-    if _t and type(_t) == "table" then
-        local idx = rawget( _t, "__index" )
-        if idx and type( idx ) == "table" then
-            rawset( _t, "__index", function( t, k ) return idx[k] end )
-        end
-        local newidx = rawget( _t, "__newindex" )
-        if newidx and type( newidx ) == "table" then
-            rawset( _t, "__newindex", function( t, k, v ) newidx[k] = v end )
-        end
-    end
-    return nativesetmetatable( _o, _t )
-end
-]]
+-- ComputerCraft 1.6 BIOS
+-- Credits: gamax92, ComputerCraft staff
+-- Modified to accept kernel arguments
 
 -- Install fix for luaj's broken string.sub/string.find
 local nativestringfind = string.find
@@ -552,15 +447,40 @@ if pocket and fs.isDir( "rom/apis/pocket" ) then
     end
 end
 
+-- Setup default arguments
+local init = "rom/programs/shell"
+if term.isColour() then
+	init = "rom/programs/advanced/multishell"
+end
+
+-- Parse kernel arguments
+local sAppend = table.concat( { ... }, " " )
+for arg in sAppend:gmatch( "%S+" ) do
+	if arg:find( "=", nil, true ) ~= nil then
+		local cmd = arg:gmatch( "(.-)=" )()
+		local param = arg:gmatch( "=(.*)" )()
+		if cmd == "init" then
+			if fs.exists( param ) and not fs.isDir( param ) then
+				init = param
+			else
+				printError( "Invalid init, " .. cmd )
+			end
+		else
+			printError( "Unknown argument, " .. cmd )
+		end
+	else
+		--if arg == "init" then
+		--else
+			printError( "Unknown argument, " .. arg )
+		--end
+	end
+end
+
 -- Run the shell
 local ok, err = pcall( function()
     parallel.waitForAny( 
         function()
-            if term.isColour() then
-                os.run( {}, "rom/programs/advanced/multishell" )
-            else
-                os.run( {}, "rom/programs/shell" )
-            end
+            os.run( {}, init )
             os.run( {}, "rom/programs/shutdown" )
         end,
         function()
