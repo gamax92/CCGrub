@@ -3,8 +3,8 @@
 
 local term = term -- For LuaSrcDiet purposes
 
-local _version = "1.0.0"
-local _builddate = "2014-04-05"
+local _version = "1.0.1"
+local _builddate = "2014-04-06"
 
 local migrate = {
 {"rom/ccgrub/menu.lst",".boot/menu.lst"},
@@ -248,36 +248,145 @@ end
 local function help()
 end
 
+local function drain_events()
+	os.queueEvent("eventDrain")
+	while true do
+		local event = { coroutine.yield() }
+		if event[1] == "eventDrain" then break end
+	end
+end
+
+local function editline(line, y, prompt)
+	drain_events()
+	term.setCursorBlink(true)
+	setColor(normalColor)
+	local index = #line + 1
+	while true do
+		term.setCursorPos(1, y)
+		term.clearLine()
+		local first = math.max(index - termW + #prompt + 1, 1)
+		term.write(prompt .. line:sub(first, first + termW - #prompt - 1))
+		term.setCursorPos(math.min(index + #prompt, termW), y)
+		local event = { coroutine.yield() }
+		if event[1] == "key" and event[2] == 14 then
+			if index > 1 then
+				line = line:sub(1,index - 2) .. line:sub(index)
+				index = index - 1
+			end
+		elseif event[1] == "key" and event[2] == 28 then
+			return line
+		elseif event[1] == "key" and event[2] == 203 then
+			if index > 1 then index = index - 1 end
+		elseif event[1] == "key" and event[2] == 205 then
+			if index < #line + 1 then index = index + 1 end
+		elseif event[1] == "key" and event[2] == 207 then
+			index = #line + 1
+		elseif event[1] == "key" and event[2] == 199 then
+			index = 1
+		elseif event[1] == "char" then
+			line = line:sub(1,index - 1) .. event[2] .. line:sub(index)
+			index = index + 1
+		end
+	end
+end
+
 local function interpreter()
 	term.setCursorBlink(true)
 	setColor(normalColor)
 	term.clear()
-	local line = ""
 	term.setCursorPos(1,3)
 	while true do
 		local _,lineY = term.getCursorPos()
 		gui_drawHeader("")
 		gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
-		term.setCursorPos(1,math.max(lineY,3))
-		term.clearLine()
-		term.write("> " .. line:sub(-termW + 3, -1))
-		local event = { coroutine.yield() }
-		if event[1] == "key" and event[2] == 16 then
+		local line = editline("", lineY, "> ")
+		
+		write("\n")
+		line = string_trim(line)
+		if line == "return" or line:sub(1,7) == "return " then
 			break
-		elseif event[1] == "key" and event[2] == 14 then
-			line = line:sub(1,-2)
-		elseif event[1] == "key" and event[2] == 28 then
-			write("\n")
-			line = string_trim(line)
-			if line == "return" or line:sub(1,7) == "return " then
-				break
+		else
+			local stat, err = pcall(run_cmd, line)
+			if stat == false then print(err) end
+		end
+	end
+end
+
+local function edit()
+	term.setCursorBlink(false)
+	gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
+	gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", termH - 2, false)
+	gui_drawFooter("Press F1 for help.", "")
+	local currentLine = 1
+	while true do
+		gui_drawHeader("EDIT " .. string.format("%02d",currentLine) .. "/" .. string.format("%02d",profiles[currentProfile][0]))
+		local first = math.max(currentLine - termH + 6,1)
+		for i = first, first + termH - 6 do
+			local drawFunc
+			if i == currentLine then
+				drawFunc = gui_drawHighlight
 			else
-				local stat, err = pcall(run_cmd, line)
-				if stat == false then print(err) end
+				drawFunc = gui_drawNormal
 			end
-			line = ""
-		elseif event[1] == "char" then
-			line = line .. event[2]
+			local title = ""
+			if profiles[currentProfile][i] ~= nil then title = profiles[currentProfile][i] end
+			drawFunc(title, i - first + 3, true)
+		end
+		local event = { coroutine.yield() }
+		if event[1] == "key" and event[2] == 200 then
+			-- Arrow Up
+			if currentLine > 1 then currentLine = currentLine - 1 end
+		elseif event[1] == "key" and event[2] == 208 then
+			-- Arrow Down
+			if currentLine < profiles[currentProfile][0] then currentLine = currentLine + 1 end
+		elseif event[1] == "key" and event[2] == 18 then
+			-- Edit selection
+			setColor(normalColor)
+			term.clear()
+			gui_drawHeader("EDIT")
+			gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
+			profiles[currentProfile][currentLine] = editline(profiles[currentProfile][currentLine], 3, "> ")
+			gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", termH - 2, false)
+			gui_drawFooter("Press F1 for help.", "")
+		elseif event[1] == "key" and event[2] == 32 then
+			-- Delete selection
+			if profiles[currentProfile][0] > 0 then
+				for i = currentLine, profiles[currentProfile][0] do
+					profiles[currentProfile][i] = profiles[currentProfile][i + 1]
+				end
+				profiles[currentProfile][0] = profiles[currentProfile][0] - 1
+				if currentLine > profiles[currentProfile][0] then
+					currentLine = profiles[currentProfile][0]
+				end
+			end
+		elseif event[1] == "char" and event[2] == "O" then
+			-- Insert on selection
+			if currentLine < 1 then currentLine = 1 end
+			for i = profiles[currentProfile][0], currentLine, -1 do
+				profiles[currentProfile][i + 1] = profiles[currentProfile][i]
+			end
+			profiles[currentProfile][currentLine] = ""
+			profiles[currentProfile][0] = profiles[currentProfile][0] + 1
+		elseif event[1] == "char" and event[2] == "o" then
+			-- Insert after selection
+			if currentLine < 1 then currentLine = 1 end
+			currentLine = currentLine + 1
+			for i = profiles[currentProfile][0], currentLine, -1 do
+				profiles[currentProfile][i + 1] = profiles[currentProfile][i]
+			end
+			profiles[currentProfile][currentLine] = ""
+			profiles[currentProfile][0] = profiles[currentProfile][0] + 1
+		elseif event[1] == "key" and event[2] == 48 then
+			-- Boot
+			return "boot"
+		elseif event[1] == "key" and event[2] == 46 then
+			-- Interpreter
+			interpreter()
+			gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", termH - 2, false)
+			gui_drawFooter("Press F1 for help.", "")
+		elseif event[1] == "key" and event[2] == 16 then
+			-- Quit
+			return "nothing"
 		end
 	end
 end
@@ -293,7 +402,7 @@ local function menu()
 	else
 		gui_drawFooter("Press F1 for help.", "")
 	end
-	local bootSelection = true
+	local task = "boot"
 	while true do
 		gui_drawHeader(string.format("%02d",currentProfile) .. "/" .. string.format("%02d",profileCount))
 		local first = math.max(currentProfile - termH + 6,1)
@@ -325,10 +434,15 @@ local function menu()
 			if currentProfile < profileCount then currentProfile = currentProfile + 1 end
 		elseif event[1] == "key" and (event[2] == 28 or event[2] == 48 or event[2] == 205) then
 			-- Boot selection
+			task = "boot"
 			break
-		elseif event[1] == "key" and (event[2] == 46) then
+		elseif event[1] == "key" and event[2] == 46 then
 			-- Interpreter
-			bootSelection = false
+			task = "interpreter"
+			break
+		elseif event[1] == "key" and event[2] == 18 then
+			-- Editor
+			task = edit()
 			break
 		end
 		if event[1] == "key" and timeout ~= nil then
@@ -337,9 +451,9 @@ local function menu()
 			gui_drawFooter("Press F1 for help.", "")
 		end
 	end
-	if not bootSelection then
+	if task == "interpreter" then
 		interpreter()
-	else
+	elseif task == "boot" then
 		term.setTextColor(1)
 		term.setBackgroundColor(32768)
 		term.clear()

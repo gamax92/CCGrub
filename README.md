@@ -10,6 +10,4 @@ TODO:
 
 Implement more builtins
 
-Implement editor
-
 Add help pages

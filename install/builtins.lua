@@ -85,6 +85,19 @@ local function cmd_default(obj)
 	end
 end
 
+local function cmd_help()
+	local avaliable = {"return"}
+	for k,v in pairs(commands) do
+		table.insert(avaliable, k)
+	end
+	table.sort(avaliable)
+	local list = ""
+	for i = 1,#avaliable do
+		list = list .. avaliable[i] .. (i < #avaliable and ", " or "")
+	end
+	print("Avaliable commands:\n" .. list)
+end
+
 local function cmd_kernel(file, ...)
 	if not fs.exists(file) then
 		error("No such file")
@@ -106,6 +119,7 @@ add_cmd("clear", cmd_clear)
 add_cmd("color", cmd_color)
 add_cmd("default", cmd_default)
 add_cmd("install", install_ccgrub)
+add_cmd("help", cmd_help)
 add_cmd("kernel", cmd_kernel)
 add_cmd("timeout", cmd_timeout)
 
