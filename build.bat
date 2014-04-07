@@ -13,7 +13,12 @@ move bios.lua tmpbios.lua
 cd LuaSrcDiet-0.11.2
 lua LuaSrcDiet.lua ..\tmpbios.lua -o ..\bios.lua --quiet --opt-entropy --opt-strings --opt-eols --maximum
 cd ..
+if not exist bios.lua goto optimizefail
 del tmpbios.lua
+goto done
+:optimizefail
+echo Compression failed!
+move tmpbios.lua bios.lua
 :done
 echo Done!
 exit /B

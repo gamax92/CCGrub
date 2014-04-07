@@ -1,5 +1,5 @@
 -- CCGrub
--- Credits Gamax92, Grub4DOS (for concept), sophiamaster (for testing)
+-- Credits Gamax92, Grub4DOS (for concept), sophiamaster (for code and testing)
 
 local _version = "1.0.1"
 local _builddate = "2014-04-06"
@@ -29,71 +29,48 @@ local function error(message)
 	_error(message,-1)
 end
 
-local function sleep( nTime )
-    local timer = os.startTimer( nTime )
-    repeat
-        local sEvent, param = coroutine.yield( "timer" )
-    until param == timer
+local function sleep(nTime)
+	local timer = os.startTimer(nTime)
+	repeat
+		local sEvent, param = coroutine.yield("timer")
+	until param == timer
 end
 
-local function write( sText )
-    local w,h = term.getSize()        
-    local x,y = term.getCursorPos()
-    
-    local function newLine()
-        if y + 1 <= h then
-            term.setCursorPos(1, y + 1)
-        else
-            term.setCursorPos(1, h)
-            term.scroll(1)
-        end
-        x, y = term.getCursorPos()
-    end
-    
-    -- Print the line with proper word wrapping
-    while string.len(sText) > 0 do
-        local whitespace = string.match( sText, "^[ \t]+" )
-        if whitespace then
-            -- Print whitespace
-            term.write( whitespace )
-            x,y = term.getCursorPos()
-            sText = string.sub( sText, string.len(whitespace) + 1 )
-        end
-        
-        local newline = string.match( sText, "^\n" )
-        if newline then
-            -- Print newlines
-            newLine()
-            sText = string.sub( sText, 2 )
-        end
-        
-        local text = string.match( sText, "^[^ \t\n]+" )
-        if text then
-            sText = string.sub( sText, string.len(text) + 1 )
-            if string.len(text) > w then
-                -- Print a multiline word                
-                while string.len( text ) > 0 do
-                    if x > w then
-                        newLine()
-                    end
-                    term.write( text )
-                    text = string.sub( text, (w-x) + 2 )
-                    x,y = term.getCursorPos()
-                end
-            else
-                -- Print a word normally
-                if x + string.len(text) - 1 > w then
-                    newLine()
-                end
-                term.write( text )
-                x,y = term.getCursorPos()
-            end
-        end
-    end
+-- Write function by sophiamaster
+-- Screw wrapping by words
+local function _write(str)
+	cur_x, cur_y = term.getCursorPos()
+	for i = 1, #str do
+		if cur_x == termW then
+			cur_x = 0
+			if cur_y < termH then
+				cur_y = cur_y + 1
+			else
+				term.scroll(1)
+			end
+		end
+		local char = str:sub(i,i)
+		if char == "\n" then
+			cur_x = 1         -- \r
+			if cur_y < termH then
+				cur_y = cur_y + 1 -- \n
+			else
+				term.scroll(1)
+			end
+		else
+			term.write(char)
+			cur_x = cur_x + 1
+		end
+		term.setCursorPos(cur_x, cur_y)
+	end
+end
+
+local function write(sText)
+	_write(sText)
 	sleep(0.05)
 end
 
-local function print( sText ) write( sText .. "\n" ) end
+local function print(sText) write(sText .. "\n") end
 
 local function install_ccgrub()
 	if not fs.exists(".boot") then
@@ -266,21 +243,23 @@ local function editline(line, y, prompt)
 		term.write(prompt .. line:sub(first, first + termW - #prompt - 1))
 		term.setCursorPos(math.min(index + #prompt, termW), y)
 		local event = { coroutine.yield() }
-		if event[1] == "key" and event[2] == 14 then
-			if index > 1 then
-				line = line:sub(1,index - 2) .. line:sub(index)
-				index = index - 1
+		if event[1] == "key" then
+			if event[2] == 14 then
+				if index > 1 then
+					line = line:sub(1,index - 2) .. line:sub(index)
+					index = index - 1
+				end
+			elseif event[2] == 28 then
+				return line
+			elseif event[2] == 203 then
+				if index > 1 then index = index - 1 end
+			elseif event[2] == 205 then
+				if index < #line + 1 then index = index + 1 end
+			elseif event[2] == 207 then
+				index = #line + 1
+			elseif event[2] == 199 then
+				index = 1
 			end
-		elseif event[1] == "key" and event[2] == 28 then
-			return line
-		elseif event[1] == "key" and event[2] == 203 then
-			if index > 1 then index = index - 1 end
-		elseif event[1] == "key" and event[2] == 205 then
-			if index < #line + 1 then index = index + 1 end
-		elseif event[1] == "key" and event[2] == 207 then
-			index = #line + 1
-		elseif event[1] == "key" and event[2] == 199 then
-			index = 1
 		elseif event[1] == "char" then
 			line = line:sub(1,index - 1) .. event[2] .. line:sub(index)
 			index = index + 1
@@ -297,9 +276,9 @@ local function interpreter()
 		local _,lineY = term.getCursorPos()
 		gui_drawHeader("")
 		gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
-		local line = editline("", lineY, "> ")
+		local line = editline("", math.max(lineY, 3), "> ")
 		
-		write("\n")
+		_write("\n")
 		line = string_trim(line)
 		if line == "return" or line:sub(1,7) == "return " then
 			break

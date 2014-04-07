@@ -16,6 +16,12 @@ optimize(){
 	cd LuaSrcDiet-0.11.2
 	lua LuaSrcDiet.lua ../tmpbios.lua -o ../bios.lua --quiet --opt-entropy --opt-strings --opt-eols --maximum
 	cd ..
+	if [ -e bios.lua ]; then
+		rm tmpbios.lua
+	else
+		echo Compression failed!
+		mv tmpbios.lua bios.lua
+	fi
 	rm tmpbios.lua
 }
 
