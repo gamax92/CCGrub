@@ -315,12 +315,16 @@ end
 local function edit()
 	term.setCursorBlink(false)
 	gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
-	gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", termH - 2, false)
-	gui_drawFooter("Press F1 for help.", "")
+	local function drawFooter()
+		gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", termH - 2, false)
+		gui_drawFooter("Press F1 for help.", "")
+	end
+	drawFooter()
 	local currentLine = 1
+	local profileEntry = profiles[currentProfile]
 	while true do
-		gui_drawHeader("EDIT " .. string.format("%02d",currentLine) .. "/" .. string.format("%02d",profiles[currentProfile][0]))
-		local first = math.max(currentLine - termH + 6,1)
+		gui_drawHeader("EDIT " .. string.format("%02d",currentLine) .. "/" .. string.format("%02d",profileEntry[0]))
+		local first = math.max(currentLine - termH + 6, 1)
 		for i = first, first + termH - 6 do
 			local drawFunc
 			if i == currentLine then
@@ -329,64 +333,66 @@ local function edit()
 				drawFunc = gui_drawNormal
 			end
 			local title = ""
-			if profiles[currentProfile][i] ~= nil then title = profiles[currentProfile][i] end
+			if profileEntry[i] ~= nil then title = profileEntry[i] end
 			drawFunc(title, i - first + 3, true)
 		end
 		local event = { coroutine.yield() }
-		if event[1] == "key" and event[2] == 200 then
-			-- Arrow Up
-			if currentLine > 1 then currentLine = currentLine - 1 end
-		elseif event[1] == "key" and event[2] == 208 then
-			-- Arrow Down
-			if currentLine < profiles[currentProfile][0] then currentLine = currentLine + 1 end
-		elseif event[1] == "key" and event[2] == 18 then
-			-- Edit selection
-			setColor(normalColor)
-			term.clear()
-			gui_drawHeader("EDIT")
-			gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
-			profiles[currentProfile][currentLine] = editline(profiles[currentProfile][currentLine], 3, "> ")
-			gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", termH - 2, false)
-			gui_drawFooter("Press F1 for help.", "")
-		elseif event[1] == "key" and event[2] == 32 then
-			-- Delete selection
-			if profiles[currentProfile][0] > 0 then
-				for i = currentLine, profiles[currentProfile][0] do
-					profiles[currentProfile][i] = profiles[currentProfile][i + 1]
+		if event[1] == "key" then
+			if event[2] == 200 then
+				-- Arrow Up
+				if currentLine > 1 then currentLine = currentLine - 1 end
+			elseif event[2] == 208 then
+				-- Arrow Down
+				if currentLine < profileEntry[0] then currentLine = currentLine + 1 end
+			elseif event[2] == 18 then
+				-- Edit selection
+				setColor(normalColor)
+				term.clear()
+				gui_drawHeader("EDIT")
+				gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
+				profileEntry[currentLine] = editline(profileEntry[currentLine], 3, "> ")
+				drawFooter()
+			elseif event[2] == 32 then
+				-- Delete selection
+				if profileEntry[0] > 0 then
+					for i = currentLine, profileEntry[0] do
+						profileEntry[i] = profileEntry[i + 1]
+					end
+					profileEntry[0] = profileEntry[0] - 1
+					if currentLine > profileEntry[0] then
+						currentLine = profileEntry[0]
+					end
 				end
-				profiles[currentProfile][0] = profiles[currentProfile][0] - 1
-				if currentLine > profiles[currentProfile][0] then
-					currentLine = profiles[currentProfile][0]
+			elseif event[2] == 48 then
+				-- Boot
+				return "boot"
+			elseif event[2] == 46 then
+				-- Interpreter
+				interpreter()
+				drawFooter()
+			elseif event[2] == 16 then
+				-- Quit
+				return "nothing"
+			end
+		elseif event[1] == "char" then
+			if event[2] == "O" then
+				-- Insert on selection
+				if currentLine < 1 then currentLine = 1 end
+				for i = profileEntry[0], currentLine, -1 do
+					profileEntry[i + 1] = profileEntry[i]
 				end
+				profileEntry[currentLine] = ""
+				profileEntry[0] = profileEntry[0] + 1
+			elseif event[2] == "o" then
+				-- Insert after selection
+				if currentLine < 1 then currentLine = 1 end
+				currentLine = currentLine + 1
+				for i = profileEntry[0], currentLine, -1 do
+					profileEntry[i + 1] = profileEntry[i]
+				end
+				profileEntry[currentLine] = ""
+				profileEntry[0] = profileEntry[0] + 1
 			end
-		elseif event[1] == "char" and event[2] == "O" then
-			-- Insert on selection
-			if currentLine < 1 then currentLine = 1 end
-			for i = profiles[currentProfile][0], currentLine, -1 do
-				profiles[currentProfile][i + 1] = profiles[currentProfile][i]
-			end
-			profiles[currentProfile][currentLine] = ""
-			profiles[currentProfile][0] = profiles[currentProfile][0] + 1
-		elseif event[1] == "char" and event[2] == "o" then
-			-- Insert after selection
-			if currentLine < 1 then currentLine = 1 end
-			currentLine = currentLine + 1
-			for i = profiles[currentProfile][0], currentLine, -1 do
-				profiles[currentProfile][i + 1] = profiles[currentProfile][i]
-			end
-			profiles[currentProfile][currentLine] = ""
-			profiles[currentProfile][0] = profiles[currentProfile][0] + 1
-		elseif event[1] == "key" and event[2] == 48 then
-			-- Boot
-			return "boot"
-		elseif event[1] == "key" and event[2] == 46 then
-			-- Interpreter
-			interpreter()
-			gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", termH - 2, false)
-			gui_drawFooter("Press F1 for help.", "")
-		elseif event[1] == "key" and event[2] == 16 then
-			-- Quit
-			return "nothing"
 		end
 	end
 end
@@ -426,29 +432,31 @@ local function menu()
 				timeout_timer = os.startTimer(0.1)
 				gui_drawFooter("Press F1 for help.", "The selected entry will boot in " .. math.ceil(timeout - os.clock() + timer_start) .. " seconds.")
 			end
-		elseif event[1] == "key" and event[2] == 200 then
-			-- Arrow Up
-			if currentProfile > 1 then currentProfile = currentProfile - 1 end
-		elseif event[1] == "key" and event[2] == 208 then
-			-- Arrow Down
-			if currentProfile < profileCount then currentProfile = currentProfile + 1 end
-		elseif event[1] == "key" and (event[2] == 28 or event[2] == 48 or event[2] == 205) then
-			-- Boot selection
-			task = "boot"
-			break
-		elseif event[1] == "key" and event[2] == 46 then
-			-- Interpreter
-			task = "interpreter"
-			break
-		elseif event[1] == "key" and event[2] == 18 then
-			-- Editor
-			task = edit()
-			break
-		end
-		if event[1] == "key" and timeout ~= nil then
-			-- Disable timeout on any keypress
-			timeout = nil
-			gui_drawFooter("Press F1 for help.", "")
+		elseif event[1] == "key" then
+			if event[2] == 200 then
+				-- Arrow Up
+				if currentProfile > 1 then currentProfile = currentProfile - 1 end
+			elseif event[2] == 208 then
+				-- Arrow Down
+				if currentProfile < profileCount then currentProfile = currentProfile + 1 end
+			elseif event[2] == 28 or event[2] == 48 or event[2] == 205 then
+				-- Boot selection
+				task = "boot"
+				break
+			elseif event[2] == 46 then
+				-- Interpreter
+				task = "interpreter"
+				break
+			elseif event[2] == 18 then
+				-- Editor
+				task = edit()
+				break
+			end
+			if timeout ~= nil then
+				-- Disable timeout on any keypress
+				timeout = nil
+				gui_drawFooter("Press F1 for help.", "")
+			end
 		end
 	end
 	if task == "interpreter" then
@@ -459,16 +467,17 @@ local function menu()
 		term.clear()
 		term.setCursorPos(1,1)
 		term.setCursorBlink(true)
-		for i = 1, profiles[currentProfile][0] do
-			if profiles[currentProfile][i] == "commandline" or profiles[currentProfile][i]:sub(1,12) == "commandline " then
+		local currentEntry = profiles[currentProfile]
+		for i = 1, currentEntry[0] do
+			if currentEntry[i] == "commandline" or currentEntry[i]:sub(1,12) == "commandline " then
 				interpreter()
 			else
-				local stat, err = pcall(run_cmd, profiles[currentProfile][i])
-				if stat == false then print(err) end
+				local stat, err = pcall(run_cmd, currentEntry[i])
+				if not stat then print(err) end
 			end
 		end
 		local stat, err = pcall(run_cmd, "boot")
-		if stat == false then print(err) end
+		if not stat then print(err) end
 		sleep(1)
 	end
 end
@@ -479,9 +488,7 @@ local function main()
 	end
 	if fs.exists(".boot/menu.lst") then
 		local stat, err = pcall(load_config, ".boot/menu.lst")
-		if stat == false then
-			print(err)
-		end
+		if stat == false then print(err) end
 	end
 	while true do
 		if profileCount <= 0 then

@@ -6,6 +6,14 @@ echo Building CCGrub ...
 call :addfile grub.lua
 for %%F in (install\*.lua) do call :addfile %%F
 call :addfile grubstart.lua
+if not exist LuaSrcDiet-0.11.2 goto done
+echo Compressing bios.lua ...
+move bios.lua tmpbios.lua
+cd LuaSrcDiet-0.11.2
+lua LuaSrcDiet.lua ..\tmpbios.lua -o ..\bios.lua
+cd ..
+del tmpbios.lua
+:done
 echo Done!
 exit /B
 
