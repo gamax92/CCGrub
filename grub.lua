@@ -39,29 +39,25 @@ end
 -- Write function by sophiamaster
 -- Screw wrapping by words
 local function _write(str)
-	cur_x, cur_y = term.getCursorPos()
-	for i = 1, #str do
-		if cur_x == termW then
-			cur_x = 0
-			if cur_y < termH then
-				cur_y = cur_y + 1
-			else
-				term.scroll(1)
-			end
+	local curX, curY = term.getCursorPos()
+	local function newline(x)
+		curX = x
+		if curY < termH then
+			curY = curY + 1
+		else
+			term.scroll(1)
 		end
+	end
+	for i = 1, #str do
+		if curX == termW then newline(0) end
 		local char = str:sub(i,i)
 		if char == "\n" then
-			cur_x = 1         -- \r
-			if cur_y < termH then
-				cur_y = cur_y + 1 -- \n
-			else
-				term.scroll(1)
-			end
+			newline(1)
 		else
 			term.write(char)
-			cur_x = cur_x + 1
+			curX = curX + 1
 		end
-		term.setCursorPos(cur_x, cur_y)
+		term.setCursorPos(curX, curY)
 	end
 end
 
@@ -105,7 +101,7 @@ local function add_cmd(name, func)
 end
 
 local function split_cmd(line)
-	line = (line or "") .. " "
+	line = line .. " "
 	local cmdargs = {}
 	for arg in line:gmatch("(%S*)%s") do table.insert(cmdargs, arg) end
 	return cmdargs
@@ -285,6 +281,7 @@ local function interpreter()
 		else
 			local stat, err = pcall(run_cmd, line)
 			if stat == false then print(err) end
+			if term.getCursorPos() > 1 then _write("\n") end
 		end
 	end
 end
@@ -315,22 +312,18 @@ local function edit()
 		end
 		local event = { coroutine.yield() }
 		if event[1] == "key" then
-			if event[2] == 200 then
-				-- Arrow Up
+			if event[2] == 200 then -- Arrow Up
 				if currentLine > 1 then currentLine = currentLine - 1 end
-			elseif event[2] == 208 then
-				-- Arrow Down
+			elseif event[2] == 208 then -- Arrow Down
 				if currentLine < profileEntry[0] then currentLine = currentLine + 1 end
-			elseif event[2] == 18 then
-				-- Edit selection
+			elseif event[2] == 18 then -- Edit selection
 				setColor(normalColor)
 				term.clear()
 				gui_drawHeader("EDIT")
 				gui_drawNormal("+" .. string.rep("-",termW - 2) .. "+", 2, false)
 				profileEntry[currentLine] = editline(profileEntry[currentLine], 3, "> ")
 				drawFooter()
-			elseif event[2] == 32 then
-				-- Delete selection
+			elseif event[2] == 32 then -- Delete selection
 				if profileEntry[0] > 0 then
 					for i = currentLine, profileEntry[0] do
 						profileEntry[i] = profileEntry[i + 1]
@@ -340,28 +333,23 @@ local function edit()
 						currentLine = profileEntry[0]
 					end
 				end
-			elseif event[2] == 48 then
-				-- Boot
+			elseif event[2] == 48 then -- Boot
 				return "boot"
-			elseif event[2] == 46 then
-				-- Interpreter
+			elseif event[2] == 46 then -- Interpreter
 				interpreter()
 				drawFooter()
-			elseif event[2] == 16 then
-				-- Quit
+			elseif event[2] == 16 then -- Quit
 				return "nothing"
 			end
 		elseif event[1] == "char" then
-			if event[2] == "O" then
-				-- Insert on selection
+			if event[2] == "O" then -- Insert on selection
 				if currentLine < 1 then currentLine = 1 end
 				for i = profileEntry[0], currentLine, -1 do
 					profileEntry[i + 1] = profileEntry[i]
 				end
 				profileEntry[currentLine] = ""
 				profileEntry[0] = profileEntry[0] + 1
-			elseif event[2] == "o" then
-				-- Insert after selection
+			elseif event[2] == "o" then -- Insert after selection
 				if currentLine < 1 then currentLine = 1 end
 				currentLine = currentLine + 1
 				for i = profileEntry[0], currentLine, -1 do
@@ -410,27 +398,21 @@ local function menu()
 				gui_drawFooter("Press F1 for help.", "The selected entry will boot in " .. math.ceil(timeout - os.clock() + timer_start) .. " seconds.")
 			end
 		elseif event[1] == "key" then
-			if event[2] == 200 then
-				-- Arrow Up
+			if event[2] == 200 then -- Arrow Up
 				if currentProfile > 1 then currentProfile = currentProfile - 1 end
-			elseif event[2] == 208 then
-				-- Arrow Down
+			elseif event[2] == 208 then -- Arrow Down
 				if currentProfile < profileCount then currentProfile = currentProfile + 1 end
-			elseif event[2] == 28 or event[2] == 48 or event[2] == 205 then
-				-- Boot selection
+			elseif event[2] == 28 or event[2] == 48 or event[2] == 205 then -- Boot selection
 				task = "boot"
 				break
-			elseif event[2] == 46 then
-				-- Interpreter
+			elseif event[2] == 46 then -- Interpreter
 				task = "interpreter"
 				break
-			elseif event[2] == 18 then
-				-- Editor
+			elseif event[2] == 18 then -- Editor
 				task = edit()
 				break
 			end
-			if timeout ~= nil then
-				-- Disable timeout on any keypress
+			if timeout ~= nil then -- Disable timeout on any keypress
 				timeout = nil
 				gui_drawFooter("Press F1 for help.", "")
 			end
