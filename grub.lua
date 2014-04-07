@@ -1,8 +1,6 @@
 -- CCGrub
 -- Credits Gamax92, Grub4DOS (for concept), sophiamaster (for testing)
 
-local term = term -- For LuaSrcDiet purposes
-
 local _version = "1.0.1"
 local _builddate = "2014-04-06"
 

@@ -14,11 +14,12 @@ optimize(){
 	echo Compressing bios.lua ...
 	mv bios.lua tmpbios.lua
 	cd LuaSrcDiet-0.11.2
-	lua LuaSrcDiet.lua ../tmpbios.lua -o ../bios.lua
+	lua LuaSrcDiet.lua ../tmpbios.lua -o ../bios.lua --quiet --opt-entropy --opt-strings --opt-eols --maximum
 	cd ..
 	rm tmpbios.lua
 }
 
+if [ -e LuaSrcDiet-0.11.2 ]; then addfile diet.lua; fi
 addfile grub.lua
 for f in install/*.lua; do addfile $f; done
 addfile grubstart.lua
